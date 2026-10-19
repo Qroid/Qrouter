@@ -1,0 +1,730 @@
+// Qrouter - ISP Management Platform
+// Multi-tenant PostgreSQL schema
+//
+// Every tenant-isolated table carries an `organizationId` and is scoped in the
+// API layer via `resolveTenant` / `scopeToOrganization` (see src/middleware/auth.ts).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Enums
+// ─────────────────────────────────────────────────────────────
+
+enum UserRole {
+  CUSTOMER
+  AGENT
+  SUPPORT
+  TECHNICIAN
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum SessionStatus {
+  ACTIVE
+  EXPIRED
+  TERMINATED
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  MPESA
+  CASH
+  CARD
+  BANK_TRANSFER
+  WALLET
+  VOUCHER
+}
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  EXPIRED
+}
+
+enum BillingCycle {
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
+enum InvoiceStatus {
+  DRAFT
+  OPEN
+  PAID
+  OVERDUE
+  VOID
+}
+
+enum WalletTransactionType {
+  CREDIT
+  DEBIT
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum AlertSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+enum NasType {
+  MIKROTIK
+  UBIQUITI
+  CISCO
+  RADIUS
+  OTHER
+}
+
+enum NotificationChannel {
+  SMS
+  EMAIL
+  PUSH
+  WHATSAPP
+}
+
+// ─────────────────────────────────────────────────────────────
+// Tenancy
+// ─────────────────────────────────────────────────────────────
+
+model Organization {
+  id               String   @id @default(uuid())
+  name             String
+  slug             String   @unique
+  email            String?
+  phone            String?
+  address          String?
+  city             String?
+  country          String   @default("KE")
+  timezone         String   @default("Africa/Nairobi")
+  currency         String   @default("KES")
+  taxRate          Float    @default(0.16)
+  subscriptionPlan String   @default("trial")
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  users                 User[]
+  plans                 Plan[]
+  sessions              Session[]
+  payments              Payment[]
+  vouchers              Voucher[]
+  systemConfigs         SystemConfig[]
+  auditLogs             AuditLog[]
+  apiKeys               ApiKey[]
+  roles                 Role[]
+  wallets               Wallet[]
+  walletTransactions    WalletTransaction[]
+  subscriptions         Subscription[]
+  invoices              Invoice[]
+  nasDevices            NasDevice[]
+  nasSessions           NasSession[]
+  radiusNas             RadiusNas[]
+  radiusAccounting      RadiusAccounting[]
+  captivePortalConfig   CaptivePortalConfig?
+  notificationTemplates NotificationTemplate[]
+  notificationLogs      NotificationLog[]
+  tickets               Ticket[]
+  networkAlerts         NetworkAlert[]
+  usageAlerts           UsageAlert[]
+
+  @@map("organizations")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Identity & access
+// ─────────────────────────────────────────────────────────────
+
+model User {
+  id             String    @id @default(uuid())
+  organizationId String
+  email          String?   @unique
+  phone          String
+  password       String?
+  firstName      String?
+  lastName       String?
+  role           UserRole  @default(CUSTOMER)
+  isActive       Boolean   @default(true)
+  lastLoginAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization     Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  sessions         Session[]
+  payments         Payment[]
+  vouchers         Voucher[]
+  auditLogs        AuditLog[]
+  apiKeys          ApiKey[]
+  twoFactorAuth    TwoFactorAuth?
+  wallet           Wallet?
+  subscriptions    Subscription[]
+  invoices         Invoice[]
+  tickets          Ticket[]
+  ticketMessages   TicketMessage[]
+  nasSessions      NasSession[]
+  radiusAccounting RadiusAccounting[]
+  usageAlerts      UsageAlert[]
+  notifications    NotificationLog[]
+
+  @@unique([organizationId, phone])
+  @@index([organizationId, role])
+  @@map("users")
+}
+
+model Role {
+  id             String   @id @default(uuid())
+  organizationId String
+  name           String
+  description    String?
+  permissions    String[] @default([])
+  isSystem       Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, name])
+  @@map("roles")
+}
+
+model Permission {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  description String?
+  group       String?
+  createdAt   DateTime @default(now())
+
+  @@map("permissions")
+}
+
+model ApiKey {
+  id             String    @id @default(uuid())
+  organizationId String
+  userId         String?
+  name           String
+  keyHash        String    @unique
+  prefix         String
+  scopes         String[]  @default([])
+  lastUsedAt     DateTime?
+  expiresAt      DateTime?
+  isActive       Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@map("api_keys")
+}
+
+model TwoFactorAuth {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  secret    String
+  isEnabled Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("two_factor_auth")
+}
+
+model AuditLog {
+  id             String   @id @default(uuid())
+  organizationId String
+  userId         String?
+  action         String
+  entity         String
+  entityId       String?
+  details        Json?
+  ipAddress      String?
+  userAgent      String?
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, entity, entityId])
+  @@map("audit_logs")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Products & access sessions
+// ─────────────────────────────────────────────────────────────
+
+model Plan {
+  id             String   @id @default(uuid())
+  organizationId String
+  name           String
+  description    String?
+  price          Float
+  duration       Int // in hours
+  dataLimit      String // e.g. "1GB", "unlimited"
+  speedLimit     String // e.g. "10Mbps"
+  isRecurring    Boolean  @default(false)
+  setupFee       Float    @default(0)
+  taxIncluded    Boolean  @default(true)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization  Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  sessions      Session[]
+  payments      Payment[]
+  vouchers      Voucher[]
+  subscriptions Subscription[]
+
+  @@index([organizationId, isActive])
+  @@map("plans")
+}
+
+model Session {
+  id              String        @id @default(uuid())
+  organizationId  String
+  userId          String
+  planId          String
+  nasDeviceId     String?
+  macAddress      String?
+  ipAddress       String?
+  startTime       DateTime      @default(now())
+  endTime         DateTime?
+  status          SessionStatus @default(ACTIVE)
+  dataUsed        BigInt        @default(0)
+  sessionToken    String        @unique
+  routerSessionId String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan         Plan         @relation(fields: [planId], references: [id])
+  nasDevice    NasDevice?   @relation(fields: [nasDeviceId], references: [id], onDelete: SetNull)
+  nasSessions  NasSession[]
+
+  @@index([organizationId, status])
+  @@index([userId, status])
+  @@map("sessions")
+}
+
+model Voucher {
+  id             String    @id @default(uuid())
+  organizationId String
+  code           String    @unique
+  planId         String?
+  userId         String?
+  amount         Float?
+  isRedeemed     Boolean   @default(false)
+  redeemedAt     DateTime?
+  expiresAt      DateTime
+  createdAt      DateTime  @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  plan         Plan?        @relation(fields: [planId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, isRedeemed])
+  @@map("vouchers")
+}
+
+model SystemConfig {
+  id             String   @id @default(uuid())
+  organizationId String?
+  key            String
+  value          String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, key])
+  @@map("system_config")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Billing
+// ─────────────────────────────────────────────────────────────
+
+model Payment {
+  id                 String        @id @default(uuid())
+  organizationId     String
+  userId             String
+  planId             String? // null for wallet top-ups and ad-hoc charges
+  invoiceId          String?
+  amount             Float
+  phone              String?
+  mpesaReceiptNumber String?
+  checkoutRequestId  String?       @unique
+  status             PaymentStatus @default(PENDING)
+  paymentMethod      PaymentMethod @default(MPESA)
+  metadata           Json?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan         Plan?        @relation(fields: [planId], references: [id], onDelete: SetNull)
+  invoice      Invoice?     @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status])
+  @@index([userId, createdAt])
+  @@map("payments")
+}
+
+model Wallet {
+  id             String   @id @default(uuid())
+  organizationId String
+  userId         String   @unique
+  balance        Float    @default(0)
+  currency       String   @default("KES")
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions WalletTransaction[]
+
+  @@index([organizationId])
+  @@map("wallets")
+}
+
+model WalletTransaction {
+  id             String                @id @default(uuid())
+  organizationId String
+  walletId       String
+  paymentId      String?
+  type           WalletTransactionType
+  amount         Float
+  balanceAfter   Float
+  description    String?
+  createdAt      DateTime              @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  wallet       Wallet       @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  @@index([walletId, createdAt])
+  @@map("wallet_transactions")
+}
+
+model Subscription {
+  id                 String             @id @default(uuid())
+  organizationId     String
+  userId             String
+  planId             String
+  status             SubscriptionStatus @default(ACTIVE)
+  billingCycle       BillingCycle       @default(MONTHLY)
+  currentPeriodStart DateTime           @default(now())
+  currentPeriodEnd   DateTime
+  cancelledAt        DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan         Plan         @relation(fields: [planId], references: [id])
+  invoices     Invoice[]
+
+  @@index([organizationId, status])
+  @@index([userId])
+  @@map("subscriptions")
+}
+
+model Invoice {
+  id             String        @id @default(uuid())
+  organizationId String
+  userId         String
+  subscriptionId String?
+  number         String
+  status         InvoiceStatus @default(DRAFT)
+  subtotal       Float         @default(0)
+  tax            Float         @default(0)
+  total          Float         @default(0)
+  amountPaid     Float         @default(0)
+  currency       String        @default("KES")
+  issuedAt       DateTime      @default(now())
+  dueAt          DateTime
+  paidAt         DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subscription Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  items        InvoiceItem[]
+  payments     Payment[]
+
+  @@unique([organizationId, number])
+  @@index([organizationId, status])
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id          String  @id @default(uuid())
+  invoiceId   String
+  description String
+  quantity    Int     @default(1)
+  unitPrice   Float
+  amount      Float
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@map("invoice_items")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Network / NAS / RADIUS
+// ─────────────────────────────────────────────────────────────
+
+model NasDevice {
+  id             String    @id @default(uuid())
+  organizationId String
+  name           String
+  type           NasType   @default(MIKROTIK)
+  host           String
+  apiPort        Int       @default(8728)
+  username       String?
+  password       String?
+  secret         String?
+  location       String?
+  isActive       Boolean   @default(true)
+  lastSeenAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  sessions     Session[]
+  nasSessions  NasSession[]
+  alerts       NetworkAlert[]
+
+  @@index([organizationId])
+  @@map("nas_devices")
+}
+
+model NasSession {
+  id             String    @id @default(uuid())
+  organizationId String
+  nasDeviceId    String
+  sessionId      String?
+  userId         String?
+  username       String?
+  macAddress     String?
+  ipAddress      String?
+  startTime      DateTime  @default(now())
+  endTime        DateTime?
+  dataUsed       BigInt    @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  nasDevice    NasDevice    @relation(fields: [nasDeviceId], references: [id], onDelete: Cascade)
+  session      Session?     @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  user         User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([nasDeviceId, startTime])
+  @@map("nas_sessions")
+}
+
+model RadiusNas {
+  id             String   @id @default(uuid())
+  organizationId String
+  name           String
+  ipAddress      String
+  secret         String
+  ports          Int      @default(1812)
+  description    String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("radius_nas")
+}
+
+model RadiusAccounting {
+  id               String    @id @default(uuid())
+  organizationId   String
+  userId           String?
+  sessionId        String
+  username         String
+  nasIpAddress     String?
+  framedIpAddress  String?
+  callingStationId String?
+  acctInputOctets  BigInt    @default(0)
+  acctOutputOctets BigInt    @default(0)
+  acctSessionTime  Int       @default(0)
+  acctStartTime    DateTime  @default(now())
+  acctStopTime     DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, acctStartTime])
+  @@index([sessionId])
+  @@map("radius_accounting")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Captive portal, notifications, support & monitoring
+// ─────────────────────────────────────────────────────────────
+
+model CaptivePortalConfig {
+  id             String   @id @default(uuid())
+  organizationId String   @unique
+  title          String   @default("Welcome to Qrouter")
+  subtitle       String?
+  logoUrl        String?
+  primaryColor   String   @default("#2563eb")
+  termsUrl       String?
+  supportPhone   String?
+  supportEmail   String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("captive_portal_configs")
+}
+
+model NotificationTemplate {
+  id             String              @id @default(uuid())
+  organizationId String
+  code           String
+  channel        NotificationChannel @default(SMS)
+  subject        String?
+  body           String
+  isActive       Boolean             @default(true)
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, code, channel])
+  @@map("notification_templates")
+}
+
+model NotificationLog {
+  id             String              @id @default(uuid())
+  organizationId String
+  userId         String?
+  channel        NotificationChannel @default(SMS)
+  recipient      String
+  subject        String?
+  body           String
+  status         String              @default("PENDING")
+  error          String?
+  sentAt         DateTime?
+  createdAt      DateTime            @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+  @@map("notification_logs")
+}
+
+model Ticket {
+  id             String         @id @default(uuid())
+  organizationId String
+  userId         String
+  assignedToId   String?
+  subject        String
+  status         TicketStatus   @default(OPEN)
+  priority       TicketPriority @default(MEDIUM)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages     TicketMessage[]
+
+  @@index([organizationId, status])
+  @@map("tickets")
+}
+
+model TicketMessage {
+  id        String   @id @default(uuid())
+  ticketId  String
+  senderId  String?
+  message   String
+  isStaff   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  sender User?  @relation(fields: [senderId], references: [id], onDelete: SetNull)
+
+  @@index([ticketId, createdAt])
+  @@map("ticket_messages")
+}
+
+model NetworkAlert {
+  id             String        @id @default(uuid())
+  organizationId String
+  nasDeviceId    String?
+  title          String
+  message        String?
+  severity       AlertSeverity @default(WARNING)
+  isResolved     Boolean       @default(false)
+  resolvedAt     DateTime?
+  createdAt      DateTime      @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  nasDevice    NasDevice?    @relation(fields: [nasDeviceId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, isResolved])
+  @@map("network_alerts")
+}
+
+model UsageAlert {
+  id             String        @id @default(uuid())
+  organizationId String
+  userId         String?
+  title          String
+  message        String?
+  severity       AlertSeverity @default(INFO)
+  threshold      Float?
+  isRead         Boolean       @default(false)
+  createdAt      DateTime      @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, isRead])
+  @@map("usage_alerts")
+}
