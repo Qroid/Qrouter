@@ -92,7 +92,7 @@ export const publicAPI = {
 // Private API (Admin Dashboard)
 export const adminAPI = {
   // Auth
-  login: (data: { email: string; password: string }): Promise<ApiResponse<{ user: User; token: string }>> =>
+  login: (data: { username: string; password: string }): Promise<ApiResponse<{ user: User; token: string }>> =>
     privateApi.post('/auth/admin/login', data).then(res => res.data),
 
   getProfile: (): Promise<ApiResponse<User>> =>

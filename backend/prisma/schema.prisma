@@ -166,6 +166,7 @@ model Organization {
 model User {
   id             String    @id @default(uuid())
   organizationId String
+  username       String?   @unique
   email          String?   @unique
   phone          String
   password       String?

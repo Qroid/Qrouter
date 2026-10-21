@@ -1,11 +1,11 @@
 import React, { useState } from 'react'
 import { Navigate } from 'react-router-dom'
-import { Wifi, Lock, Mail, Eye, EyeOff } from 'lucide-react'
+import { Wifi, Lock, User, Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import toast from 'react-hot-toast'
 
 const AdminLogin: React.FC = () => {
-  const [email, setEmail] = useState('')
+  const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -20,7 +20,7 @@ const AdminLogin: React.FC = () => {
     setLoading(true)
 
     try {
-      const result = await login(email, password)
+      const result = await login(username, password)
       if (result.success) {
         toast.success('Login successful!')
       } else {
@@ -54,21 +54,21 @@ const AdminLogin: React.FC = () => {
         <div className="bg-white rounded-lg shadow-lg p-8">
           <form className="space-y-6" onSubmit={handleSubmit}>
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                Email Address
+              <label htmlFor="username" className="block text-sm font-medium text-gray-700">
+                Username
               </label>
               <div className="mt-1 relative">
-                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                 <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  autoComplete="email"
+                  id="username"
+                  name="username"
+                  type="text"
+                  autoComplete="username"
                   required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
                   className="input-field pl-10"
-                  placeholder="admin@qrouter.com"
+                  placeholder="Enter your username"
                 />
               </div>
             </div>
@@ -118,11 +118,7 @@ const AdminLogin: React.FC = () => {
             </div>
           </form>
 
-          <div className="mt-6 text-center">
-            <p className="text-xs text-gray-500">
-              Default credentials: admin@qrouter.com / admin123
-            </p>
-          </div>
+
         </div>
 
         <div className="text-center">

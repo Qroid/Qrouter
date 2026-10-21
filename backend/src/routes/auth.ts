@@ -11,7 +11,12 @@ const prisma = new PrismaClient();
 
 // Admin login
 router.post('/admin/login', [
-  body('email').isEmail().withMessage('Valid email required'),
+  body('username').optional().isString().trim().notEmpty(),
+  body('email').optional().isEmail(),
+  body().custom(value => {
+    if (!value.username && !value.email) throw new Error('Username or email required');
+    return true;
+  }),
   body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters')
 ], async (req: Request, res: Response) => {
   try {
@@ -20,13 +25,13 @@ router.post('/admin/login', [
       return res.status(400).json({ success: false, errors: errors.array() });
     }
 
-    const { email, password } = req.body;
+    const { email, username, password } = req.body;
 
     const user = await prisma.user.findUnique({
-      where: { email }
+      where: username ? { username } : { email }
     });
 
-    if (!user || !user.password || !['ADMIN', 'SUPER_ADMIN'].includes(user.role)) {
+    if (!user || !user.isActive || !user.password || !['ADMIN', 'SUPER_ADMIN'].includes(user.role)) {
       await auditService.record({
         organizationId: user?.organizationId ?? '',
         userId: user?.id ?? null,
@@ -37,6 +42,11 @@ router.post('/admin/login', [
         ipAddress: req.ip ?? null,
         userAgent: (req.headers['user-agent'] as string) ?? null
       });
+      return res.status(401).json({ success: false, error: 'Invalid credentials' });
+    }
+
+    const organizationId = (req as AuthRequest).organizationId;
+    if (organizationId && user.organizationId !== organizationId) {
       return res.status(401).json({ success: false, error: 'Invalid credentials' });
     }
 

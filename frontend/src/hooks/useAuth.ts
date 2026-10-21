@@ -53,9 +53,9 @@ export const useAuth = () => {
     initAuth()
   }, [])
 
-  const login = useCallback(async (email: string, password: string) => {
+  const login = useCallback(async (username: string, password: string) => {
     try {
-      const response = await adminAPI.login({ email, password })
+      const response = await adminAPI.login({ username, password })
       if (response.success && response.data) {
         const { user, token } = response.data
         localStorage.setItem('auth_token', token)
