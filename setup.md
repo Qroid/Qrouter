@@ -127,10 +127,23 @@ npm run dev:frontend
 
 Default seeded admin:
 
-- **Email:** `admin@qrouter.com`
-- **Password:** `admin123`
+- **Username:** `Ken`
+- **Password:** `Checkmate123!`
 
-Replace default credentials before any public use.
+These are temporary local credentials. Replace them before any public use. The admin email remains `admin@qrouter.com`; existing email-based API login is retained.
+
+### Apply the new credentials to an existing local database
+
+Stop the development servers, confirm `NODE_ENV=development` and that `DATABASE_URL` targets your local database, then run:
+
+```bash
+npm --prefix backend run db:generate
+npm --prefix backend run db:push
+npm --prefix backend run admin:reset-local
+npm run dev
+```
+
+This adds the optional unique username field and updates only the seeded admin's username, first name, and password. It does not reseed or delete plans. New databases receive these credentials during initial seeding. Never use this temporary-credential reset against production.
 
 ## 7. Verify the local setup
 
@@ -190,7 +203,7 @@ The customer portal loads plans from `GET /api/public/plans`. The popup is a gen
 | Organization missing / HTTP 400 | Development mode or explicit organization header/subdomain |
 | HTTP 500 | Database availability, credentials, schema, Prisma client, and backend logs; do not assume a single cause |
 | Successful response with an empty array | Active plans for the selected organization; this is not a server error |
-| Authentication failure after initialization | Whether seed completed and whether the account already existed; seed does not reset an existing admin password |
+| Authentication failure after initialization | Whether seed completed and whether the account already existed; use the local admin update steps below rather than reseeding |
 
 Outside development, a direct diagnostic request can specify a real organization ID:
 

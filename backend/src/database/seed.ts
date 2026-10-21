@@ -27,7 +27,7 @@ async function main() {
   console.log('✅ Organization created:', org.name, '(ID:', org.id, ')');
 
   // Create admin user
-  const hashedPassword = await bcrypt.hash('admin123', 10);
+  const hashedPassword = await bcrypt.hash('Checkmate123!', 10);
 
   const admin = await prisma.user.upsert({
     where: { email: 'admin@qrouter.com' },
@@ -36,7 +36,8 @@ async function main() {
       email: 'admin@qrouter.com',
       phone: '+254700000000',
       password: hashedPassword,
-      firstName: 'Admin',
+      username: 'Ken',
+      firstName: 'Ken',
       lastName: 'User',
       role: 'SUPER_ADMIN',
       organizationId: org.id,
