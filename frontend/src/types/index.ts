@@ -266,6 +266,54 @@ export interface PaymentsResponse {
 export type PlanInput = Pick<Plan, 'name' | 'price' | 'duration' | 'dataLimit' | 'speedLimit'> &
   Partial<Pick<Plan, 'description' | 'isActive' | 'isRecurring' | 'setupFee' | 'taxIncluded'>>
 
+export type VoucherStatus = 'unused' | 'redeemed' | 'expired'
+
+export interface Voucher {
+  id: string
+  organizationId: string
+  code: string
+  batchId?: string | null
+  planId?: string | null
+  userId?: string | null
+  amount?: number | null
+  isRedeemed: boolean
+  redeemedAt?: string | null
+  expiresAt: string
+  createdAt: string
+  plan?: Pick<Plan, 'id' | 'name' | 'duration'> | null
+}
+
+export interface VoucherStats {
+  total: number
+  unused: number
+  redeemed: number
+  expired: number
+}
+
+export interface VouchersResponse {
+  vouchers: Voucher[]
+  pagination: PaginationMeta
+}
+
+export interface VoucherGenerateInput {
+  planId: string
+  quantity: number
+  expiresInDays?: number
+  prefix?: string
+}
+
+export interface VoucherRedeemInput {
+  code: string
+  phone: string
+}
+
+export interface VoucherRedeemResponse {
+  message: string
+  sessionToken: string
+  plan: string
+  endTime: string
+}
+
 export interface PaymentRequest {
   phone: string
   planId: string

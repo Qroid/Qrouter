@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react'
 import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom'
-import { 
-  LayoutDashboard, 
-  Users, 
-  CreditCard, 
-  Wifi, 
-  Settings, 
+import {
+  LayoutDashboard,
+  Users,
+  CreditCard,
+  Wifi,
+  Settings,
   LogOut,
   Menu,
   X,
@@ -16,7 +16,8 @@ import {
   Radio,
   Bell,
   Search,
-  RefreshCw
+  RefreshCw,
+  Ticket
 } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import { adminAPI } from '../services/api'
@@ -32,6 +33,7 @@ import SessionsManagement from '../components/SessionsManagement'
 import PaymentsManagement from '../components/PaymentsManagement'
 import BillingManagement from '../components/BillingManagement'
 import NetworkManagement from '../components/NetworkManagement'
+import VouchersManagement from '../components/VouchersManagement'
 import SettingsPage from '../components/SettingsPage'
 
 const AdminDashboard: React.FC = () => {
@@ -66,6 +68,7 @@ const AdminDashboard: React.FC = () => {
     { name: 'Dashboard', href: '/admin', icon: LayoutDashboard },
     { name: 'Users', href: '/admin/users', icon: Users },
     { name: 'Plans', href: '/admin/plans', icon: CreditCard },
+    { name: 'Vouchers', href: '/admin/vouchers', icon: Ticket },
     { name: 'Sessions', href: '/admin/sessions', icon: Wifi },
     { name: 'Payments', href: '/admin/payments', icon: DollarSign },
     { name: 'Billing', href: '/admin/billing', icon: Receipt },
@@ -240,6 +243,7 @@ const AdminDashboard: React.FC = () => {
               <Route path="/" element={<DashboardOverview stats={stats} onRefresh={handleRefresh} />} />
               <Route path="/users" element={<UsersManagement />} />
               <Route path="/plans" element={<PlansManagement />} />
+              <Route path="/vouchers" element={<VouchersManagement />} />
               <Route path="/sessions" element={<SessionsManagement />} />
               <Route path="/payments" element={<PaymentsManagement />} />
               <Route path="/billing" element={<BillingManagement />} />

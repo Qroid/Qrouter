@@ -57,6 +57,95 @@ router.get('/plans/:id', async (req: Request, res: Response) => {
   }
 });
 
+// Redeem a voucher code — creates a session and provisions NAS access.
+// The claim is atomic (updateMany guarded on isRedeemed=false) so the same
+// code can never grant two sessions, even under concurrent requests.
+router.post('/voucher/redeem', [
+  body('code').isString().trim().notEmpty().withMessage('Voucher code required'),
+  body('phone').isMobilePhone('any').withMessage('Valid phone number required')
+], async (req: Request, res: Response) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ success: false, errors: errors.array() });
+    }
+
+    const orgId = (req as AuthRequest).organizationId;
+    if (!orgId) {
+      return res.status(400).json({ success: false, error: 'Organization context required' });
+    }
+
+    const code = String(req.body.code).trim().toUpperCase().replace(/\s+/g, '');
+    const { phone } = req.body;
+
+    const voucher = await prisma.voucher.findFirst({
+      where: { code, organizationId: orgId },
+      include: { plan: true }
+    });
+
+    if (!voucher) {
+      return res.status(404).json({ success: false, error: 'Invalid voucher code' });
+    }
+    if (voucher.isRedeemed) {
+      return res.status(409).json({ success: false, error: 'Voucher has already been used' });
+    }
+    if (new Date() > voucher.expiresAt) {
+      return res.status(410).json({ success: false, error: 'Voucher has expired' });
+    }
+    if (!voucher.planId || !voucher.plan) {
+      return res.status(400).json({ success: false, error: 'Voucher is not linked to a plan' });
+    }
+
+    // Get or create the customer within this organization (same as payment flow)
+    let user = await prisma.user.findFirst({
+      where: { phone, organizationId: orgId }
+    });
+    if (!user) {
+      user = await prisma.user.create({
+        data: { phone, role: 'CUSTOMER', organizationId: orgId }
+      });
+    }
+
+    // Atomic claim — only one request can flip isRedeemed false → true.
+    const claimed = await prisma.voucher.updateMany({
+      where: { id: voucher.id, isRedeemed: false },
+      data: { isRedeemed: true, redeemedAt: new Date(), userId: user.id }
+    });
+    if (claimed.count === 0) {
+      return res.status(409).json({ success: false, error: 'Voucher has already been used' });
+    }
+
+    // Create the session (provisions access on the NAS). If this fails,
+    // release the voucher so the customer is not charged for nothing.
+    try {
+      const sessionToken = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+      const session = await sessionService.createSession(user.id, voucher.planId!, sessionToken, {
+        organizationId: orgId
+      });
+
+      return res.json({
+        success: true,
+        data: {
+          message: 'Voucher redeemed successfully',
+          sessionToken,
+          plan: voucher.plan.name,
+          endTime: session.endTime
+        }
+      });
+    } catch (sessionError) {
+      console.error('Session creation after voucher redemption failed:', sessionError);
+      await prisma.voucher.update({
+        where: { id: voucher.id },
+        data: { isRedeemed: false, redeemedAt: null, userId: null }
+      });
+      return res.status(500).json({ success: false, error: 'Could not activate access. Please try again.' });
+    }
+  } catch (error) {
+    console.error('Voucher redemption error:', error);
+    res.status(500).json({ success: false, error: 'Voucher redemption failed' });
+  }
+});
+
 // Register new user
 router.post('/register', [
   body('phone').isMobilePhone('any').withMessage('Valid phone number required'),
