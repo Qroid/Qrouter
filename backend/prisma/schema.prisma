@@ -342,6 +342,7 @@ model Voucher {
   id             String    @id @default(uuid())
   organizationId String
   code           String    @unique
+  batchId        String?
   planId         String?
   userId         String?
   amount         Float?
@@ -355,6 +356,7 @@ model Voucher {
   plan         Plan?        @relation(fields: [planId], references: [id], onDelete: SetNull)
 
   @@index([organizationId, isRedeemed])
+  @@index([organizationId, createdAt])
   @@map("vouchers")
 }
 

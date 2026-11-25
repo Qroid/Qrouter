@@ -14,6 +14,7 @@ import publicRoutes from './routes/public';
 import billingRoutes from './routes/billing';
 import networkRoutes from './routes/network';
 import radiusRoutes from './routes/radius';
+import voucherRoutes from './routes/vouchers';
 
 import { errorHandler } from './middleware/errorHandler';
 import { resolveTenant } from './middleware/auth';
@@ -67,6 +68,7 @@ app.use('/api/public', publicRoutes);
 app.use('/api/billing', billingRoutes);
 app.use('/api/network', networkRoutes);
 app.use('/api/radius', radiusRoutes);
+app.use('/api/vouchers', voucherRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

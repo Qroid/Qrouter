@@ -21,7 +21,12 @@ import type {
   BillingCycle,
   NasDevice,
   NasType,
-  NetworkOverview
+  NetworkOverview,
+  VoucherStats,
+  VouchersResponse,
+  VoucherGenerateInput,
+  VoucherRedeemInput,
+  VoucherRedeemResponse
 } from '../types'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api'
@@ -87,6 +92,10 @@ export const publicAPI = {
   // Connection
   connect: (data: ConnectionRequest): Promise<ApiResponse<{ message: string; session: any }>> =>
     publicApi.post('/public/connect', data).then(res => res.data),
+
+  // Vouchers
+  redeemVoucher: (data: VoucherRedeemInput): Promise<ApiResponse<VoucherRedeemResponse>> =>
+    publicApi.post('/public/voucher/redeem', data).then(res => res.data),
 }
 
 // Private API (Admin Dashboard)
@@ -217,6 +226,26 @@ export const adminAPI = {
 
   getRadiusSessions: (limit?: number): Promise<ApiResponse<any[]>> =>
     privateApi.get('/radius/sessions', { params: { limit } }).then(res => res.data),
+
+  // Vouchers
+  getVouchers: (params?: {
+    page?: number
+    limit?: number
+    status?: string
+    planId?: string
+    search?: string
+    batchId?: string
+  }): Promise<ApiResponse<VouchersResponse>> =>
+    privateApi.get('/vouchers', { params }).then(res => res.data),
+
+  getVoucherStats: (): Promise<ApiResponse<VoucherStats>> =>
+    privateApi.get('/vouchers/stats').then(res => res.data),
+
+  createVouchers: (data: VoucherGenerateInput): Promise<ApiResponse<{ batchId: string; quantity: number; expiresAt: string }>> =>
+    privateApi.post('/vouchers', data).then(res => res.data),
+
+  deleteVoucher: (id: string): Promise<ApiResponse<{ message: string }>> =>
+    privateApi.delete(`/vouchers/${id}`).then(res => res.data),
 }
 
 // User API (Authenticated customers)

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Wifi, Check, Clock, Zap, CreditCard, Download, Phone, AlertCircle } from 'lucide-react'
+import { Wifi, Check, Clock, Zap, CreditCard, Download, Phone, AlertCircle, Ticket } from 'lucide-react'
 import { formatCurrency, formatDuration, isValidKenyanPhone } from '../utils/formatters'
 import { publicAPI } from '../services/api'
 import toast from 'react-hot-toast'
@@ -13,6 +13,13 @@ const CustomerPortal: React.FC = () => {
   const [loading, setLoading] = useState(false)
   const [paymentStatus, setPaymentStatus] = useState<string | null>(null)
   const [connectionStatus, setConnectionStatus] = useState('disconnected')
+
+  // Voucher redemption
+  const [showVoucher, setShowVoucher] = useState(false)
+  const [voucherCode, setVoucherCode] = useState('')
+  const [voucherPhone, setVoucherPhone] = useState('')
+  const [redeeming, setRedeeming] = useState(false)
+  const [redeemSuccess, setRedeemSuccess] = useState(false)
 
   useEffect(() => {
     fetchPlans()
@@ -136,6 +143,43 @@ const CustomerPortal: React.FC = () => {
     }
   }
 
+  const handleRedeemVoucher = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    if (!isValidKenyanPhone(voucherPhone)) {
+      toast.error('Please enter a valid Kenyan phone number')
+      return
+    }
+    if (!voucherCode.trim()) {
+      toast.error('Enter your voucher code')
+      return
+    }
+
+    setRedeeming(true)
+    try {
+      const response = await publicAPI.redeemVoucher({
+        code: voucherCode,
+        phone: voucherPhone
+      })
+
+      if (response.success && response.data) {
+        setRedeemSuccess(true)
+        setConnectionStatus('connected')
+        toast.success('Voucher redeemed! You are now connected.')
+        setTimeout(() => {
+          setShowVoucher(false)
+          setRedeemSuccess(false)
+          setVoucherCode('')
+          setVoucherPhone('')
+        }, 4000)
+      }
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || 'Voucher redemption failed')
+    } finally {
+      setRedeeming(false)
+    }
+  }
+
   const PlanCard: React.FC<{ plan: Plan }> = ({ plan }) => (
     <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
       <div className="text-center">
@@ -214,6 +258,25 @@ const CustomerPortal: React.FC = () => {
           {plans.map((plan) => (
             <PlanCard key={plan.id} plan={plan} />
           ))}
+        </div>
+
+        {/* Voucher redemption entry point */}
+        <div className="mt-12 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl p-8 text-white flex flex-col md:flex-row items-center justify-between gap-6 shadow-xl">
+          <div className="flex items-center">
+            <div className="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center mr-4 backdrop-blur-sm">
+              <Ticket className="w-7 h-7 text-white" />
+            </div>
+            <div>
+              <h3 className="text-xl font-bold">Have a voucher?</h3>
+              <p className="text-indigo-100">Enter your prepaid code to get instant access.</p>
+            </div>
+          </div>
+          <button
+            onClick={() => setShowVoucher(true)}
+            className="bg-white text-indigo-700 font-semibold px-8 py-3 rounded-xl hover:bg-indigo-50 transition-colors shadow-lg"
+          >
+            Redeem Voucher
+          </button>
         </div>
 
         {/* How it Works */}
@@ -371,6 +434,89 @@ const CustomerPortal: React.FC = () => {
                 >
                   Try Again
                 </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Voucher Redemption Modal */}
+      {showVoucher && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold">Redeem Voucher</h2>
+              <button
+                onClick={() => { setShowVoucher(false); setRedeemSuccess(false) }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                ×
+              </button>
+            </div>
+
+            {!redeemSuccess ? (
+              <form onSubmit={handleRedeemVoucher}>
+                <div className="mb-4 p-4 bg-indigo-50 rounded-lg flex items-start">
+                  <Ticket className="w-5 h-5 text-indigo-600 mr-3 mt-0.5 flex-shrink-0" />
+                  <p className="text-sm text-indigo-800">
+                    Enter the code printed on your voucher card. Access starts immediately after redemption.
+                  </p>
+                </div>
+
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Voucher Code</label>
+                  <input
+                    type="text"
+                    value={voucherCode}
+                    onChange={(e) => setVoucherCode(e.target.value.toUpperCase())}
+                    placeholder="XXXX-XXXX-XXXX"
+                    className="w-full px-3 py-3 border border-gray-300 rounded-lg font-mono text-lg tracking-widest text-center uppercase focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    required
+                    autoFocus
+                  />
+                </div>
+
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number</label>
+                  <div className="relative">
+                    <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                    <input
+                      type="tel"
+                      value={voucherPhone}
+                      onChange={(e) => setVoucherPhone(e.target.value)}
+                      placeholder="0712345678"
+                      className="input-field pl-10"
+                      required
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">Used to identify your access session</p>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={redeeming}
+                  className="w-full bg-indigo-600 text-white py-3 px-4 rounded-lg hover:bg-indigo-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                >
+                  {redeeming ? (
+                    <>
+                      <div className="loading-spinner mr-2"></div>
+                      Redeeming...
+                    </>
+                  ) : (
+                    <>
+                      <Ticket className="w-4 h-4 mr-2" />
+                      Redeem & Connect
+                    </>
+                  )}
+                </button>
+              </form>
+            ) : (
+              <div className="text-center py-8">
+                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Check className="w-8 h-8 text-green-600" />
+                </div>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Voucher Redeemed!</h3>
+                <p className="text-gray-600">You are now connected to the internet. Enjoy browsing!</p>
               </div>
             )}
           </div>
