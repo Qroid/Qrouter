@@ -212,7 +212,7 @@ class MpesaService {
           include: { user: true, plan: true }
         });
 
-        if (payment && payment.planId) {
+        if (payment && payment.planId && payment.plan) {
           // Create session for the user
           const sessionToken = this.generateSessionToken();
           const endTime = new Date();

@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 import { AuthRequest } from '../middleware/auth';
 
 const prisma = new PrismaClient();
@@ -30,7 +30,7 @@ export class AuditService {
           action: entry.action,
           entity: entry.entity,
           entityId: entry.entityId ?? null,
-          details: entry.details ?? undefined,
+          details: (entry.details ?? undefined) as Prisma.InputJsonValue | undefined,
           ipAddress: entry.ipAddress ?? null,
           userAgent: entry.userAgent ?? null
         }

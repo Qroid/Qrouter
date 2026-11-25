@@ -310,7 +310,7 @@ router.get('/payment/status/:checkoutRequestId', async (req: Request, res: Respo
     }
 
     // If payment is completed, create session
-    if (payment.status === 'COMPLETED') {
+    if (payment.status === 'COMPLETED' && payment.planId) {
       const existingSession = await prisma.session.findFirst({
         where: {
           userId: payment.userId,
@@ -320,7 +320,7 @@ router.get('/payment/status/:checkoutRequestId', async (req: Request, res: Respo
         }
       });
 
-      if (!existingSession && payment.planId) {
+      if (!existingSession) {
         const sessionToken = generateSessionToken();
         const endTime = new Date();
         const plan = await prisma.plan.findUnique({ where: { id: payment.planId } });
